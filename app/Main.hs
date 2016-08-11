@@ -17,11 +17,15 @@ import System.Environment (getArgs)
 import System.FilePath
 import System.FSNotify
 import System.Process
+import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode(ExitFailure, ExitSuccess))
 
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.HTTP.Types (status200, status404)
+
+import Data.Time
+import Data.Time.LocalTime
 
 import qualified Language.Haskell.Interpreter as I
 import qualified Control.Exception as E
@@ -31,16 +35,21 @@ data Msg = Err String
          | Code String
          deriving (Show, Generic, ToJSON, FromJSON)
 
+
 main :: IO ()
 main = do
   getArgs >>= \case
-    [pathToWatch] -> main' pathToWatch
+    ["--record", pathToWatch] -> do
+      let folderName = ".hylide"
+      createDirectoryIfMissing True folderName
+      main' pathToWatch (saveCodeToFile pathToWatch folderName)
+    [pathToWatch] -> main' pathToWatch (pure ())
     _ -> error "Error: Name a file to watch!"
 
-main' :: FilePath ->  IO ()
-main' pathToWatch = do
+main' :: FilePath -> IO () ->  IO ()
+main' pathToWatch doIfCompiles = do
   tid1 <- forkIO serveIndex
-  tid2 <- forkIO $ serveGLSL pathToWatch
+  tid2 <- forkIO $ serveGLSL pathToWatch doIfCompiles
   putStrLn "Press enter to exit."
   void getLine
   killThread tid1
@@ -48,15 +57,16 @@ main' pathToWatch = do
 
 
 
-serveGLSL :: FilePath -> IO ()
-serveGLSL pathToWatch = do
+serveGLSL :: FilePath -> IO () -> IO ()
+serveGLSL pathToWatch doIfCompiles = do
   withManager
     $ S.runServer "127.0.0.1" 8080
-    . handleConnection pathToWatch
+    . handleConnection pathToWatch doIfCompiles
   return ()
 
-handleConnection :: FilePath -> WatchManager -> S.PendingConnection -> IO ()
-handleConnection pathToWatch mgr pending = do
+handleConnection :: FilePath -> IO () 
+                 -> WatchManager -> S.PendingConnection -> IO ()
+handleConnection pathToWatch doIfCompiles mgr pending = do
    let (dirToWatch, _) = splitFileName pathToWatch
    connection <- S.acceptRequest pending
 
@@ -65,6 +75,9 @@ handleConnection pathToWatch mgr pending = do
    let update = do
          msg <- getCodeOrError pathToWatch
          send . encode $ msg
+         case msg of
+           Code _ -> doIfCompiles
+           Err _ -> pure ()
 
    let onChange e = do
          case e of
@@ -91,18 +104,13 @@ getCodeOrError path = do
       I.GhcException str -> Err str
     Right str -> Code str
 
--- getCodeOrError' :: FilePath -> IO Msg
--- getCodeOrError' pathToWatch = do
---    -- TODO: more robust paths!:
---    -- c <- readFile pathToWatch
---    let (dirToWatch, _) = splitFileName pathToWatch
---    (ec, stdout, stderr) <- readProcessWithExitCode "runghc" [
---         "-i"++dirToWatch
---       , pathToWatch
---       ] ""
---    case ec of
---      ExitSuccess   -> return (Code stdout)
---      ExitFailure _ -> return (Err stderr)
+
+saveCodeToFile :: FilePath -> FilePath -> IO ()
+saveCodeToFile srcPath outPath = do
+  src <- readFile srcPath
+  time <- formatTime defaultTimeLocale "%Y-%m-%d-%H:%M:%S" <$> (getCurrentTime >>= utcToLocalZonedTime)
+  writeFile (outPath ++ "/" ++ time ++ ".hs") src
+
 
 serveIndex :: IO ()
 serveIndex = do

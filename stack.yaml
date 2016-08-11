@@ -1,9 +1,30 @@
-resolver: lts-6.2
-
-packages:
-  - '.'
-extra-deps:
-  - hylogen-0.1.4.0
 flags: {}
-
 extra-package-dbs: []
+packages:
+- '.'
+extra-deps:
+- Boolean-0.2.3
+- MemoTrie-0.6.4
+- NumInstances-1.4
+- appar-0.1.4
+- byteorder-1.0.4
+- data-reify-0.6.1
+- entropy-0.3.7
+- ghc-paths-0.1.0.9
+- hint-0.6.0
+- http-date-0.0.6.1
+- http2-1.6.0
+- hylogen-0.1.4.0
+- iproute-1.7.0
+- psqueues-0.2.2.1
+- simple-sendfile-0.2.25
+- vault-0.3.0.6
+- vector-space-0.10.3
+- wai-3.2.1.1
+- warp-3.2.7
+- websockets-0.9.6.2
+- word8-0.1.2
+- aeson-pretty-0.8.1
+- hex-0.1.2
+- cmdargs-0.10.14
+resolver: ghc-8.0.1
