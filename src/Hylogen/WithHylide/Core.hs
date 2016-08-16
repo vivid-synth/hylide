@@ -2,7 +2,7 @@ module Hylogen.WithHylide.Core where
 
 import           Data.Monoid
 import           Hylogen
-import           Hylogen.Expr
+import           Hylogen.AST.Expr
 
 
 -- Writes GLSL, without sharing
