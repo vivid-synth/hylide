@@ -8,6 +8,7 @@ import Paths_hylide (getDataFileName)
 import Control.Concurrent
 import Control.Monad
 import Data.Aeson
+import Data.String
 import GHC.Generics
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 
@@ -31,20 +32,33 @@ import qualified Language.Haskell.Interpreter as I
 import qualified Control.Exception as E
 
 
-data Msg = Err String
-         | Code String
-         deriving (Show, Generic, ToJSON, FromJSON)
 
+
+usageStr :: String
+usageStr = unlines
+           [ "Usage: hylide [--record] pathToWatch"
+           , "--record      saves a time-stamped copy of code to .hylide on recompiles"
+           ]
 
 main :: IO ()
-main = do
-  getArgs >>= \case
-    ["--record", pathToWatch] -> do
-      let folderName = ".hylide"
-      createDirectoryIfMissing True folderName
-      main' pathToWatch (saveCodeToFile pathToWatch folderName)
-    [pathToWatch] -> main' pathToWatch (pure ())
-    _ -> error "Error: Name a file to watch!"
+main =
+  let
+    folderName = ".hylide"
+  in
+    getArgs >>= \case
+      ["--record", pathToWatch] -> do
+        createDirectoryIfMissing True folderName
+        main' pathToWatch (saveCodeToFile pathToWatch folderName)
+
+      ["-h"]                    -> putStrLn usageStr
+
+      ["--h"]                   -> putStrLn usageStr
+
+      ["help"]                  -> putStrLn usageStr
+
+      [pathToWatch]             -> main' pathToWatch (pure ())
+
+      _                         -> putStrLn usageStr
 
 main' :: FilePath -> IO () ->  IO ()
 main' pathToWatch doIfCompiles = do
@@ -64,13 +78,16 @@ serveGLSL pathToWatch doIfCompiles = do
     . handleConnection pathToWatch doIfCompiles
   return ()
 
-handleConnection :: FilePath -> IO () 
+data Msg = Err String
+         | Code String
+         deriving (Show, Generic, ToJSON, FromJSON)
+
+handleConnection :: FilePath -> IO ()
                  -> WatchManager -> S.PendingConnection -> IO ()
 handleConnection pathToWatch doIfCompiles mgr pending = do
    let (dirToWatch, _) = splitFileName pathToWatch
    connection <- S.acceptRequest pending
 
-   -- let send = sendTextData connection . T.pack
    let send = S.sendTextData connection
    let update = do
          msg <- getCodeOrError pathToWatch
@@ -85,7 +102,7 @@ handleConnection pathToWatch doIfCompiles mgr pending = do
            _ -> return ()
    update
    _ <- watchDir mgr dirToWatch (const True) onChange
-   _ <- getLine -- temp hack to keep the socket open
+   _ <- getLine
    return ()
 
 interp :: FilePath -> I.InterpreterT IO String
@@ -132,7 +149,7 @@ serveHTML htmlString = responseLBS status200 [("Content-Type", "text/html")]
   $ LBS8.pack htmlString
 
 serveJS :: String -> Network.Wai.Response
-serveJS jsString = responseLBS status200 [("Content-Type", "application/javascript")] 
+serveJS jsString = responseLBS status200 [("Content-Type", "application/javascript")]
   $ LBS8.pack jsString
 
 error404 :: Network.Wai.Response
