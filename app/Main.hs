@@ -41,7 +41,7 @@ main' :: FilePath ->  IO ()
 main' pathToWatch = do
   tid1 <- forkIO serveIndex
   tid2 <- forkIO $ serveGLSL pathToWatch
-  putStrLn "Press enter to exit."
+  putStrLn $ "Serving on port "++show servePort++". Press enter to exit."
   void getLine
   killThread tid1
   killThread tid2
@@ -104,12 +104,13 @@ getCodeOrError path = do
 --      ExitSuccess   -> return (Code stdout)
 --      ExitFailure _ -> return (Err stderr)
 
+servePort = 5678
+
 serveIndex :: IO ()
 serveIndex = do
-  let port = 5678
   htmlString <- readFile =<< getDataFileName "client/dist-local/index.html"
   jsString <- readFile =<< getDataFileName "client/dist-local/bundle.js"
-  run port $ app htmlString jsString
+  run servePort $ app htmlString jsString
 
 
 app :: String -> String -> Application
